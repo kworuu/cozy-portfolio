@@ -1,0 +1,6 @@
+@CozyPortfolio.Api_HostAddress = http://localhost:5241
+
+GET {{CozyPortfolio.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
