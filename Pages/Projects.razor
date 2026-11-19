@@ -1,23 +1,104 @@
 @page "/projects"
+@inject ProjectService ProjectService
 
 <section>
     <SectionHeader Eyebrow="📌 PINNED WORK" EyebrowColor="var(--color-sage)" Title="Projects" />
 
-    <div class="mt-6 grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-6">
-        @foreach (var proj in MyProjects)
+    <div class="mt-6 flex flex-col gap-3 rounded-3xl border-[3px] border-beige bg-white p-6 shadow-pop">
+        <h3 class="text-lg font-extrabold">@(editingId is null ? "Add a project" : "Edit project")</h3>
+        <input @bind="title" @bind:event="oninput" placeholder="Title"
+               class="rounded-full border-2 border-beige px-4 py-2 text-sm focus:outline-none" />
+        <textarea @bind="description" @bind:event="oninput" rows="2" placeholder="Description"
+                  class="rounded-2xl border-2 border-beige px-4 py-2 text-sm focus:outline-none"></textarea>
+        <select @bind="icon" class="rounded-full border-2 border-beige px-4 py-2 text-sm">
+            @foreach (var i in Enum.GetValues<IconName>())
+            {
+                <option value="@i">@i</option>
+            }
+        </select>
+        <div class="flex gap-2">
+            <button class="btn btn-sage disabled:opacity-50" @onclick="Save" disabled="@(saving || !CanSave)">
+                @(editingId is null ? "Add" : "Save")
+            </button>
+            @if (editingId is not null)
+            {
+                <button class="btn bg-beige text-bark" @onclick="ResetForm">Cancel</button>
+            }
+        </div>
+        @if (error is not null)
         {
-            <ProjectCard Project="proj" />
+            <p class="text-sm text-coral">@error</p>
         }
     </div>
+
+    @if (loading)
+    {
+        <p class="mt-6 text-sm text-bark">Loading projects…</p>
+    }
+    else
+    {
+        <div class="mt-6 grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-6">
+            @foreach (var proj in items)
+            {
+                <div @key="proj.Id" class="flex flex-col gap-2">
+                    <ProjectCard Project="proj" />
+                    <div class="flex gap-2">
+                        <button class="btn bg-powder text-soil" @onclick="() => StartEdit(proj)">Edit</button>
+                        <button class="btn bg-blush text-soil" @onclick="() => Remove(proj)">Delete</button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
 </section>
 
 @code {
-    [Inject] private IPortfolioDataService DataService { get; set; } = default!;
+    private IReadOnlyList<Project> items = Array.Empty<Project>();
+    private bool loading = true, saving;
+    private long? editingId;
+    private string title = "", description = "";
+    private IconName icon = IconName.Sparkle;
+    private string? error;
 
-    private IReadOnlyList<Project> MyProjects = Array.Empty<Project>();
+    private bool CanSave => !string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(description);
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
     {
-        MyProjects = DataService.GetProjects();
+        try { items = await ProjectService.GetAllAsync(); error = null; }
+        catch (Exception ex) { error = $"Could not load projects: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task Save()
+    {
+        if (!CanSave || saving) return;     // double-click guard
+        saving = true;
+        try
+        {
+            if (editingId is long id) await ProjectService.UpdateAsync(id, title, description, icon);
+            else await ProjectService.AddAsync(title, description, icon);
+            ResetForm();
+            await Load();
+        }
+        catch (Exception ex) { error = $"Could not save: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private void StartEdit(Project p)
+    {
+        editingId = p.Id; title = p.Title; description = p.Description; icon = p.Icon;
+    }
+
+    private async Task Remove(Project p)
+    {
+        try { await ProjectService.SoftDeleteAsync(p.Id); await Load(); }
+        catch (Exception ex) { error = $"Could not delete: {ex.Message}"; }
+    }
+
+    private void ResetForm()
+    {
+        editingId = null; title = ""; description = ""; icon = IconName.Sparkle;
     }
 }
