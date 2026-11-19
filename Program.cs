@@ -11,4 +11,11 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 builder.Services.AddScoped<IPortfolioDataService, PortfolioDataService>();
 builder.Services.AddScoped<IAudioService, AudioService>();
 
+var url = builder.Configuration["Supabase:Url"]!;
+var key = builder.Configuration["Supabase:Key"]!;
+var supabase = new Supabase.Client(url, key, new Supabase.SupabaseOptions { AutoConnectRealtime = false });
+await supabase.InitializeAsync();
+builder.Services.AddSingleton(supabase);
+builder.Services.AddScoped<ProjectService>();
+
 await builder.Build().RunAsync();
